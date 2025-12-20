@@ -35,6 +35,14 @@ function Expenses() {
     setAmount("");
   };
 
+  const deleteExpense = (expenseId) => {
+    if (!confirm('Are you sure you want to delete this expense?')) return;
+
+    const updated = expenses.filter(e => e.id !== expenseId);
+    setExpenses(updated);
+    localStorage.setItem("expenses", JSON.stringify(updated));
+  };
+
   const calculateSettlement = () => {
     const balance = {};
     members.forEach(m => (balance[m] = 0));
@@ -125,7 +133,7 @@ function Expenses() {
             <div className="space-y-3">
               {expenses.length === 0 && <p className="text-sm text-zinc-500">No expenses added yet.</p>}
               {expenses.map(e => (
-                <div key={e.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                <div key={e.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 group hover:bg-white/10 transition-all">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400">
                       <span className="iconify" data-icon="lucide:receipt" data-width="16"></span>
@@ -135,7 +143,16 @@ function Expenses() {
                       <p className="text-xs text-zinc-500">Paid by {e.paidBy}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-semibold text-white">₹{e.amount}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-white">₹{e.amount}</span>
+                    <button
+                      onClick={() => deleteExpense(e.id)}
+                      className="h-7 w-7 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-all opacity-0 group-hover:opacity-100"
+                      title="Delete expense"
+                    >
+                      <span className="iconify" data-icon="lucide:trash-2" data-width="14"></span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
