@@ -12,6 +12,13 @@ export default function TravelMatches() {
 
     useEffect(() => {
         initializeData();
+
+        // Auto-refresh matches every 10 seconds
+        const interval = setInterval(() => {
+            fetchMatches();
+        }, 10000);
+
+        return () => clearInterval(interval);
     }, []);
 
     const initializeData = async () => {
@@ -39,16 +46,17 @@ export default function TravelMatches() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Fetch all travel_matches updated in last 30 seconds
-            const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+            // Fetch all travel_matches updated in last 2 minutes (120 seconds)
+            const twoMinutesAgo = new Date(Date.now() - 120000).toISOString();
 
             const { data, error } = await supabase
                 .from('travel_matches')
                 .select('*')
                 .neq('user_id', user.id) // Exclude current user
-                .gte('last_updated', thirtySecondsAgo); // Active in last 30s
+                .gte('last_updated', twoMinutesAgo); // Active in last 2 minutes
 
             if (error) throw error;
+            console.log(`📍 Found ${data?.length || 0} active travelers nearby`);
             setMatches(data || []);
         } catch (error) {
             console.error("Error fetching matches:", error);

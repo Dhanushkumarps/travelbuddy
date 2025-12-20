@@ -30,12 +30,12 @@ const Dashboard = () => {
             if (!user) return;
 
             // Fetch travel matches
-            const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+            const twoMinutesAgo = new Date(Date.now() - 120000).toISOString();
             const { data: matchesData } = await supabase
                 .from('travel_matches')
                 .select('*')
                 .neq('user_id', user.id)
-                .gte('last_updated', thirtySecondsAgo)
+                .gte('last_updated', twoMinutesAgo)
                 .limit(2);
             setMatches(matchesData || []);
 
