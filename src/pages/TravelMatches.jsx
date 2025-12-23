@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabase";
+import ChatWindow from "../components/ChatWindow";
 
 export default function TravelMatches() {
     const [location, setLocation] = useState(null);
@@ -9,6 +10,7 @@ export default function TravelMatches() {
     const [currentUser, setCurrentUser] = useState(null);
     const [connections, setConnections] = useState([]);
     const [selectedReasons, setSelectedReasons] = useState({});
+    const [activeChatUser, setActiveChatUser] = useState(null);
 
     useEffect(() => {
         initializeData();
@@ -272,9 +274,12 @@ export default function TravelMatches() {
 
                                 {/* Action Button */}
                                 {isConnected ? (
-                                    <button className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium cursor-default">
-                                        <span className="iconify" data-icon="lucide:check-circle" data-width="16"></span>
-                                        Connected
+                                    <button
+                                        onClick={() => setActiveChatUser({ user_id: match.user_id, name: safeName })}
+                                        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors shadow-lg shadow-emerald-500/20"
+                                    >
+                                        <span className="iconify" data-icon="lucide:message-circle" data-width="16"></span>
+                                        Message
                                     </button>
                                 ) : isPending ? (
                                     <button className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-zinc-800 text-zinc-400 text-sm font-medium cursor-default">
@@ -294,6 +299,14 @@ export default function TravelMatches() {
                         );
                     })}
                 </div>
+            )}
+
+            {activeChatUser && currentUser && (
+                <ChatWindow
+                    currentUser={currentUser}
+                    receiver={activeChatUser}
+                    onClose={() => setActiveChatUser(null)}
+                />
             )}
         </div>
     );

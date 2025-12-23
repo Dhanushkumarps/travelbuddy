@@ -12,6 +12,20 @@ export default function TripHistory() {
       .then(({ data }) => setTrips(data || []));
   }, []);
 
+  const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to delete this trip?")) return;
+
+    try {
+      const { error } = await supabase.from('trips').delete().eq('id', id);
+      if (error) throw error;
+
+      setTrips(prev => prev.filter(t => t.id !== id));
+    } catch (error) {
+      console.error("Error deleting trip:", error);
+      alert("Failed to delete trip");
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto w-full space-y-6">
       <div className="flex items-center justify-between mb-4">
@@ -39,8 +53,14 @@ export default function TripHistory() {
                 <p className="text-xs text-zinc-500 uppercase font-medium">Trip ID: {t.id.slice(0, 8)}</p>
                 <p className="text-xs text-zinc-400">{new Date(t.created_at).toLocaleDateString()}</p>
               </div>
-              <div className="ml-auto">
-                <span className="iconify text-zinc-600 group-hover:text-zinc-300 transition-colors" data-icon="lucide:chevron-right" data-width="20"></span>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => handleDelete(t.id)}
+                  className="p-2 hover:bg-red-500/10 text-zinc-600 hover:text-red-500 rounded-lg transition-colors group/del"
+                  title="Delete Trip"
+                >
+                  <span className="iconify" data-icon="lucide:trash-2" data-width="18"></span>
+                </button>
               </div>
             </div>
 

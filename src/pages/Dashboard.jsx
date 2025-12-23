@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabase';
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+
+/* Fix Leaflet icons */
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+    iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+    shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png"
+});
 
 const Dashboard = () => {
     const [matches, setMatches] = useState([]);
@@ -88,6 +99,13 @@ const Dashboard = () => {
                     distance: parsed.distance || '0',
                     eta: parsed.eta || 'Calculating...'
                 });
+
+                // Enforce mutual exclusivity: If tracking is ON, Safety must be OFF
+                const currentSafety = localStorage.getItem('safetyStatus');
+                if (currentSafety === 'true') {
+                    setSafetyStatus(false);
+                    localStorage.setItem('safetyStatus', 'false');
+                }
             } else {
                 setIsTracking(false);
                 setLiveLocation(null);
@@ -101,6 +119,11 @@ const Dashboard = () => {
         localStorage.setItem('safetyStatus', JSON.stringify(newStatus));
 
         if (newStatus) {
+            // Setup Stop Tracking
+            setIsTracking(false);
+            setLiveLocation(null);
+            localStorage.removeItem('liveLocation');
+
             alert('Safety status updated! Your contacts have been notified.');
         }
     };
@@ -134,14 +157,24 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Main Map Card */}
                 <div className="lg:col-span-2 glass-panel rounded-xl overflow-hidden flex flex-col h-[400px] relative group">
-                    <div className="absolute inset-0 map-grid opacity-20"></div>
-
                     {isTracking && liveLocation ? (
                         <>
-                            {/* Live tracking indicator */}
-                            <div className="absolute top-1/2 left-1/4 h-32 w-64 border-t-2 border-r-2 border-indigo-500/50 rounded-tr-3xl transform -translate-y-1/2 translate-x-12 z-0"></div>
-                            <div className="absolute top-1/2 left-1/4 h-3 w-3 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)] z-10 animate-pulse"></div>
-                            <div className="absolute top-[35%] right-[20%] h-3 w-3 bg-white rounded-full border-2 border-zinc-700 z-10"></div>
+                            <MapContainer
+                                center={[liveLocation.lat, liveLocation.lng]}
+                                zoom={15}
+                                style={{ height: "100%", width: "100%" }}
+                                zoomControl={false}
+                                attributionControl={false}
+                                key={`${liveLocation.lat}-${liveLocation.lng}`} // Force re-render on big moves if needed, or better let Leaflet handle it. actually let's just update center.
+                            >
+                                <TileLayer
+                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" // Light mode map matches standard UI
+                                    // For dark mode aesthetics we might want a dark map provider, but OSM is standard.
+                                    // Let's use standard OSM but maybe apply a CSS filter if we want "dark mode" or just keep it standard map.
+                                    attribution='&copy; OSM'
+                                />
+                                <Marker position={[liveLocation.lat, liveLocation.lng]} />
+                            </MapContainer>
 
                             {/* Route UI Overlay */}
                             <div className="absolute top-4 left-4 bg-[#09090b]/90 backdrop-blur border border-white/10 rounded-lg p-3 w-64 shadow-2xl z-10">

@@ -41,6 +41,16 @@ function LiveTracking() {
   const watchId = useRef(null);
   const lastUpdate = useRef(0); // To throttle DB updates
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (watchId.current !== null) {
+        navigator.geolocation.clearWatch(watchId.current);
+      }
+    };
+  }, []);
+
+
   const startTracking = () => {
     if (!navigator.geolocation) {
       alert("Geolocation not supported");
