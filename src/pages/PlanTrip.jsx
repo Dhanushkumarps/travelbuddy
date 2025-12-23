@@ -132,6 +132,15 @@ function PlanTrip() {
           >
             Reset
           </button>
+          {info && (
+            <button
+              onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}`, '_blank')}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-lg transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+            >
+              <span className="iconify" data-icon="lucide:navigation-2" data-width="16"></span>
+              Navigate
+            </button>
+          )}
         </div>
       </div>
 

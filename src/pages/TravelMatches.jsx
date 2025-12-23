@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabase";
+import ChatWindow from "../components/ChatWindow";
 
 export default function TravelMatches() {
     const [location, setLocation] = useState(null);
@@ -9,9 +10,19 @@ export default function TravelMatches() {
     const [currentUser, setCurrentUser] = useState(null);
     const [connections, setConnections] = useState([]);
     const [selectedReasons, setSelectedReasons] = useState({});
+    const [activeChatUser, setActiveChatUser] = useState(null);
+
+    const [showAll, setShowAll] = useState(false);
 
     useEffect(() => {
         initializeData();
+
+        // Auto-refresh matches every 10 seconds
+        const interval = setInterval(() => {
+            fetchMatches();
+        }, 10000);
+
+        return () => clearInterval(interval);
     }, []);
 
     const initializeData = async () => {
@@ -39,16 +50,17 @@ export default function TravelMatches() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Fetch all travel_matches updated in last 30 seconds
-            const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+            // Fetch all travel_matches updated in last 1 hour (was 2 mins)
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
             const { data, error } = await supabase
                 .from('travel_matches')
                 .select('*')
                 .neq('user_id', user.id) // Exclude current user
-                .gte('last_updated', thirtySecondsAgo); // Active in last 30s
+                .gte('last_updated', oneHourAgo); // Active in last 1 hour
 
             if (error) throw error;
+            console.log(`📍 Found ${data?.length || 0} active travelers nearby`);
             setMatches(data || []);
         } catch (error) {
             console.error("Error fetching matches:", error);
@@ -148,6 +160,7 @@ export default function TravelMatches() {
             return { ...m, distance: dist ? parseFloat(dist) : null };
         })
         .filter(m => {
+            if (showAll) return true; // Bypass filter if Show All is on
             const connection = getConnectionStatus(m.user_id);
             // Show connected users OR users within 5km
             if (connection && connection.status === 'accepted') return true;
@@ -161,14 +174,28 @@ export default function TravelMatches() {
 
     return (
         <div className="p-6 max-w-7xl mx-auto w-full space-y-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                 <div>
                     <h2 className="text-xl font-bold text-white tracking-tight">Travel Matches</h2>
                     <p className="text-zinc-500 text-sm mt-1">
-                        {processedMatches.length} travelers nearby • {connections.filter(c => c.status === 'accepted').length} connected
+                        {processedMatches.length} visible • {matches.length} total active in last 1h
                     </p>
+                    {location && (
+                        <p className="text-[10px] text-zinc-600 font-mono mt-0.5">
+                            My Loc: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
+                        </p>
+                    )}
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
+                    <button
+                        onClick={() => setShowAll(!showAll)}
+                        className={`text-sm px-4 py-2 rounded-lg transition-colors border ${showAll
+                                ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/50'
+                                : 'bg-zinc-800 text-zinc-400 border-white/5 hover:bg-zinc-700'
+                            }`}
+                    >
+                        {showAll ? 'Showing All' : 'Filter: < 5km'}
+                    </button>
                     <Link to="/connect" className="text-sm px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex items-center gap-2">
                         <span className="iconify" data-icon="lucide:inbox" data-width="16"></span>
                         Requests
@@ -264,9 +291,12 @@ export default function TravelMatches() {
 
                                 {/* Action Button */}
                                 {isConnected ? (
-                                    <button className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium cursor-default">
-                                        <span className="iconify" data-icon="lucide:check-circle" data-width="16"></span>
-                                        Connected
+                                    <button
+                                        onClick={() => setActiveChatUser({ user_id: match.user_id, name: safeName })}
+                                        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors shadow-lg shadow-emerald-500/20"
+                                    >
+                                        <span className="iconify" data-icon="lucide:message-circle" data-width="16"></span>
+                                        Message
                                     </button>
                                 ) : isPending ? (
                                     <button className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-zinc-800 text-zinc-400 text-sm font-medium cursor-default">
@@ -286,6 +316,14 @@ export default function TravelMatches() {
                         );
                     })}
                 </div>
+            )}
+
+            {activeChatUser && currentUser && (
+                <ChatWindow
+                    currentUser={currentUser}
+                    receiver={activeChatUser}
+                    onClose={() => setActiveChatUser(null)}
+                />
             )}
         </div>
     );

@@ -1,16 +1,103 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase';
+import NotificationDropdown from './NotificationDropdown';
 
 const Layout = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [user, setUser] = useState(null);
+    const [notifications, setNotifications] = useState([]);
+    const [showNotifications, setShowNotifications] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
         fetchUser();
     }, []);
+
+    useEffect(() => {
+        if (user) {
+            fetchNotifications();
+            // Subscribe to new messages and requests
+            const subscription = supabase
+                .channel('global-notifications')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
+                    () => fetchNotifications())
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'connection_requests', filter: `receiver_id=eq.${user.id}` },
+                    () => fetchNotifications())
+                .subscribe();
+
+            return () => {
+                subscription.unsubscribe();
+            };
+        }
+    }, [user]);
+
+    const fetchNotifications = async () => {
+        if (!user) return;
+
+        // Fetch pending requests
+        const { data: requests } = await supabase
+            .from('connection_requests')
+            .select(`
+                id,
+                created_at,
+                sender_id
+            `)
+            .eq('receiver_id', user.id)
+            .eq('status', 'pending');
+
+        // Fetch unread messages
+        const { data: messages } = await supabase
+            .from('messages')
+            .select(`
+                id,
+                content,
+                created_at,
+                sender_id
+            `)
+            .eq('receiver_id', user.id)
+            .eq('is_read', false);
+
+        // Get sender names (optimization: could be better but works for now)
+        const senderIds = [...new Set([
+            ...(requests?.map(r => r.sender_id) || []),
+            ...(messages?.map(m => m.sender_id) || [])
+        ])];
+
+        let senderNames = {};
+        if (senderIds.length > 0) {
+            const { data: users } = await supabase
+                .from('travel_matches') // Assuming travel_matches has names
+                .select('user_id, name')
+                .in('user_id', senderIds);
+
+            users?.forEach(u => senderNames[u.user_id] = u.name);
+        }
+
+        const formattedRequests = (requests || []).map(r => ({
+            type: 'request',
+            id: r.id,
+            title: 'New Connection Request',
+            description: `${senderNames[r.sender_id] || 'Someone'} wants to connect`,
+            time: new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            originalTime: new Date(r.created_at)
+        }));
+
+        const formattedMessages = (messages || []).map(m => ({
+            type: 'message',
+            id: m.id,
+            title: senderNames[m.sender_id] || 'Unknown User',
+            description: m.content,
+            time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            originalTime: new Date(m.created_at)
+        }));
+
+        const allNotifications = [...formattedRequests, ...formattedMessages]
+            .sort((a, b) => b.originalTime - a.originalTime);
+
+        setNotifications(allNotifications);
+    };
 
     const fetchUser = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -163,10 +250,29 @@ const Layout = () => {
                         </span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <button className="text-zinc-400 hover:text-white transition-colors relative">
-                            <span className="iconify" data-icon="lucide:bell" data-width="20"></span>
-                            <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-indigo-500 border border-[#09090b]"></span>
-                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                className={`text-zinc-400 hover:text-white transition-colors relative ${showNotifications ? 'text-white' : ''}`}
+                            >
+                                <span className="iconify" data-icon="lucide:bell" data-width="20"></span>
+                                {notifications.length > 0 && (
+                                    <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-indigo-500 border border-[#09090b]"></span>
+                                )}
+                            </button>
+
+                            {/* Notifications Dropdown */}
+                            {showNotifications && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>
+                                    <NotificationDropdown
+                                        notifications={notifications}
+                                        onClose={() => setShowNotifications(false)}
+                                        onMarkRead={(id) => setNotifications(prev => prev.filter(n => n.id !== id))}
+                                    />
+                                </>
+                            )}
+                        </div>
                         <Link to="/sos" className="h-8 w-24 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-md flex items-center justify-center gap-2 text-xs font-medium transition-all shadow-[0_0_15px_rgba(239,68,68,0.1)]">
                             <span className="iconify" data-icon="lucide:alert-circle" data-width="14"></span>
                             SOS

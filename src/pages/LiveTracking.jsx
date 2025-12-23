@@ -38,8 +38,19 @@ function LiveTracking() {
   const [tracking, setTracking] = useState(false);
   const [routePath, setRoutePath] = useState([]);
   const [startTime, setStartTime] = useState(null);
+  const [lastSyncTime, setLastSyncTime] = useState(null);
   const watchId = useRef(null);
   const lastUpdate = useRef(0); // To throttle DB updates
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (watchId.current !== null) {
+        navigator.geolocation.clearWatch(watchId.current);
+      }
+    };
+  }, []);
+
 
   const startTracking = () => {
     if (!navigator.geolocation) {
@@ -103,8 +114,15 @@ function LiveTracking() {
                 last_updated: new Date().toISOString(),
                 name: user.user_metadata.full_name || user.email.split('@')[0],
                 destination: 'Roaming'
-              }).then(({ error }) => {
-                if (error) console.error("Error broadcasting location:", error);
+              }, {
+                onConflict: 'user_id' // Specify the unique constraint column
+              }).then(({ data, error }) => {
+                if (error) {
+                  console.error("❌ Error broadcasting location:", error);
+                } else {
+                  console.log("✅ Location broadcast successful:", { lat: latitude, lng: longitude });
+                  setLastSyncTime(new Date().toLocaleTimeString());
+                }
               });
             }
           });
@@ -162,6 +180,7 @@ function LiveTracking() {
           {position && (
             <p className="text-indigo-400 text-[10px] font-mono mt-1">
               RAW: {position.lat.toFixed(6)}, {position.lng.toFixed(6)}
+              {lastSyncTime && <span className="text-emerald-500 ml-2"> • Synced {lastSyncTime}</span>}
             </p>
           )}
         </div>
